@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:latest
+    container_name: mysql_container
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: testdb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_container
+    ports:
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # Web UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  producer:
+    build: ./producer
+    container_name: producer_container
+    depends_on:
+      - rabbitmq
+    volumes:
+      - ./producer:/app
+    working_dir: /app
+    command: npm run start
+
+  consumer:
+    build: ./consumer
+    container_name: consumer_container
+    depends_on:
+      - rabbitmq
+      - mysql
+    volumes:
+      - ./consumer:/app
+    working_dir: /app
+    command: npm run start
+
+volumes:
+  mysql_data:
