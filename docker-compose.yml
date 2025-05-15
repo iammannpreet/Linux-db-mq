@@ -45,8 +45,7 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ./producer:/app
-      - /app/node_modules
+      - ./producer/csv.csv:/app/csv.csv
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq_container
       - CSV_FILE_PATH=/app/csv.csv
@@ -61,9 +60,6 @@ services:
         condition: service_healthy
       mysql:
         condition: service_healthy
-    volumes:
-      - ./consumer:/app
-      - /app/node_modules
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq_container
       - MYSQL_HOST=mysql_container
