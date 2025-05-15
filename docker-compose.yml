@@ -1,9 +1,11 @@
 version: '3.8'
 
 services:
+  # MySQL database service
   mysql:
-    image: mysql:latest
+    image: mysql:8.0
     container_name: mysql_container
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: testdb
@@ -11,37 +13,64 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # RabbitMQ message broker service
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq_container
+    restart: unless-stopped
     ports:
-      - "5672:5672"      # AMQP
-      - "15672:15672"    # Web UI
+      - "5672:5672"      # AMQP protocol
+      - "15672:15672"    # Management UI
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Producer service - reads from CSV and sends to queue
   producer:
     build: ./producer
     container_name: producer_container
+    restart: on-failure
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     volumes:
       - ./producer:/app
-    working_dir: /app
-    command: npm run start
+      - /app/node_modules
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq_container
+      - CSV_FILE_PATH=/app/csv.csv
 
+  # Consumer service - processes messages from queue and stores in DB
   consumer:
     build: ./consumer
     container_name: consumer_container
+    restart: unless-stopped
     depends_on:
-      - rabbitmq
-      - mysql
+      rabbitmq:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
     volumes:
       - ./consumer:/app
-    working_dir: /app
-    command: npm run start
+      - /app/node_modules
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq_container
+      - MYSQL_HOST=mysql_container
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=password
+      - MYSQL_DATABASE=testdb
 
 volumes:
   mysql_data:
+    driver: local
